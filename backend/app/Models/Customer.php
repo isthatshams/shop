@@ -2,30 +2,28 @@
 
 namespace App\Models;
 
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable implements JWTSubject, FilamentUser
+class Customer extends Authenticatable implements JWTSubject
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable;
 
     protected $fillable = [
         'name',
         'email',
         'password',
-        'two_factor_secret',
-        'two_factor_enabled',
+        'phone',
+        'avatar',
+        'is_active',
+        'email_verified_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
-        'two_factor_secret',
     ];
 
     protected function casts(): array
@@ -33,20 +31,13 @@ class User extends Authenticatable implements JWTSubject, FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'two_factor_enabled' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 
-    // FilamentUser - control panel access
-    public function canAccessPanel(Panel $panel): bool
+    public function isVerified(): bool
     {
-        return true; // All users can access admin panel
-    }
-
-    // Check if user is super admin
-    public function isSuperAdmin(): bool
-    {
-        return $this->hasRole('super_admin');
+        return $this->email_verified_at !== null;
     }
 
     // JWT Methods
@@ -57,6 +48,6 @@ class User extends Authenticatable implements JWTSubject, FilamentUser
 
     public function getJWTCustomClaims()
     {
-        return [];
+        return ['type' => 'customer'];
     }
 }
