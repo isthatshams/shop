@@ -94,7 +94,7 @@ class _RegisterPageState extends State<RegisterPage>
                       child: IconButton(
                         onPressed: () => context.go('/login'),
                         icon: const Icon(Icons.arrow_back_ios),
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.darkTextSecondary,
                       ),
                     ),
 

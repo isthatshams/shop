@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:shop_mobile/core/api/api_client.dart';
 import 'package:shop_mobile/features/auth/data/models/user_model.dart';
 
@@ -16,15 +17,60 @@ class AuthRepository {
       final response = await _apiClient.register(name, email, password);
 
       if (response.data['success'] == true) {
-        final token = response.data['token'];
-        await _apiClient.saveToken(token);
+        // New registration requires OTP verification
+        if (response.data['data']?['requires_verification'] == true) {
+          return AuthResult.requiresOtp(email: email);
+        }
 
-        final user = User.fromJson(response.data['user']);
-        return AuthResult.success(user: user, token: token);
+        // Fallback for direct login after registration
+        final token = response.data['data']?['token'];
+        if (token != null) {
+          await _apiClient.saveToken(token);
+          final user = User.fromJson(response.data['data']['customer']);
+          return AuthResult.success(user: user, token: token);
+        }
+
+        return AuthResult.requiresOtp(email: email);
       }
 
       return AuthResult.failure(
         response.data['message'] ?? 'Registration failed',
+      );
+    } catch (e) {
+      return AuthResult.failure(_extractError(e));
+    }
+  }
+
+  Future<AuthResult> verifyOtp(String email, String otp) async {
+    try {
+      final response = await _apiClient.verifyOtp(email, otp);
+
+      if (response.data['success'] == true) {
+        final token = response.data['data']['token'];
+        await _apiClient.saveToken(token);
+
+        final user = User.fromJson(response.data['data']['customer']);
+        return AuthResult.success(user: user, token: token);
+      }
+
+      return AuthResult.failure(
+        response.data['message'] ?? 'Verification failed',
+      );
+    } catch (e) {
+      return AuthResult.failure(_extractError(e));
+    }
+  }
+
+  Future<AuthResult> resendOtp(String email) async {
+    try {
+      final response = await _apiClient.resendOtp(email);
+
+      if (response.data['success'] == true) {
+        return AuthResult.success(message: 'OTP sent successfully');
+      }
+
+      return AuthResult.failure(
+        response.data['message'] ?? 'Failed to resend OTP',
       );
     } catch (e) {
       return AuthResult.failure(_extractError(e));
@@ -36,71 +82,52 @@ class AuthRepository {
       final response = await _apiClient.login(email, password);
 
       if (response.data['success'] == true) {
-        // Check if 2FA is required
-        if (response.data['requires_2fa'] == true) {
-          final tempToken = response.data['temp_token'];
-          await _apiClient.saveToken(tempToken);
-          return AuthResult.requires2FA(tempToken: tempToken);
-        }
-
-        final token = response.data['token'];
+        final token = response.data['data']['token'];
         await _apiClient.saveToken(token);
 
-        final user = User.fromJson(response.data['user']);
+        final user = User.fromJson(response.data['data']['customer']);
         return AuthResult.success(user: user, token: token);
+      }
+
+      // Check if verification is required
+      if (response.data['data']?['requires_verification'] == true) {
+        return AuthResult.requiresOtp(
+          email: response.data['data']['email'],
+          message: response.data['message'],
+        );
       }
 
       return AuthResult.failure(response.data['message'] ?? 'Login failed');
     } catch (e) {
-      return AuthResult.failure(_extractError(e));
-    }
-  }
-
-  Future<AuthResult> verify2FA(String code) async {
-    try {
-      final response = await _apiClient.verify2FA(code);
-
-      if (response.data['success'] == true) {
-        final token = response.data['token'];
-        if (token != null) {
-          await _apiClient.saveToken(token);
+      // Check for 403 requiring verification
+      if (e is DioException && e.response?.statusCode == 403) {
+        final data = e.response?.data;
+        if (data?['data']?['requires_verification'] == true) {
+          return AuthResult.requiresOtp(
+            email: data['data']['email'],
+            message: data['message'],
+          );
         }
-
-        if (response.data['user'] != null) {
-          final user = User.fromJson(response.data['user']);
-          return AuthResult.success(user: user, token: token);
-        }
-
-        return AuthResult.success(message: response.data['message']);
       }
-
-      return AuthResult.failure(
-        response.data['message'] ?? 'Verification failed',
-      );
-    } catch (e) {
       return AuthResult.failure(_extractError(e));
     }
   }
 
   Future<TwoFactorSetupResult> enable2FA() async {
     try {
-      final response = await _apiClient.enable2FA();
-
-      if (response.data['success'] == true) {
-        return TwoFactorSetupResult(
-          success: true,
-          secret: response.data['secret'],
-          qrCodeUrl: response.data['qr_code_url'],
-        );
-      }
-
+      // This would be for admin 2FA, not customer
       return TwoFactorSetupResult(
         success: false,
-        error: response.data['message'] ?? 'Failed to enable 2FA',
+        error: '2FA setup not available for customers',
       );
     } catch (e) {
       return TwoFactorSetupResult(success: false, error: _extractError(e));
     }
+  }
+
+  Future<AuthResult> verify2FA(String code) async {
+    // This is for admin 2FA, not customer OTP
+    return AuthResult.failure('2FA not supported for customers');
   }
 
   Future<void> logout() async {
@@ -118,7 +145,7 @@ class AuthRepository {
 
       final response = await _apiClient.getMe();
       if (response.data['success'] == true) {
-        return User.fromJson(response.data['user']);
+        return User.fromJson(response.data['data']);
       }
     } catch (_) {}
     return null;
@@ -130,10 +157,29 @@ class AuthRepository {
   }
 
   String _extractError(dynamic e) {
-    if (e is Exception) {
-      final message = e.toString();
-      if (message.contains('SocketException')) {
-        return 'Unable to connect to server';
+    if (e is DioException) {
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Connection timeout. Please check your internet connection.';
+        case DioExceptionType.connectionError:
+          return 'Cannot connect to server. Make sure Laravel is running.';
+        case DioExceptionType.badResponse:
+          final data = e.response?.data;
+          if (data is Map) {
+            if (data['message'] != null) return data['message'];
+            if (data['errors'] != null) {
+              final errors = data['errors'] as Map;
+              final firstError = errors.values.first;
+              if (firstError is List && firstError.isNotEmpty) {
+                return firstError.first.toString();
+              }
+            }
+          }
+          return 'Server error: ${e.response?.statusCode}';
+        default:
+          return 'Network error. Please try again.';
       }
     }
     return 'An error occurred. Please try again.';
@@ -148,7 +194,8 @@ class AuthResult {
   final String? message;
   final String? error;
   final bool requires2FA;
-  final String? tempToken;
+  final bool requiresOtp;
+  final String? pendingEmail;
 
   AuthResult._({
     required this.success,
@@ -157,7 +204,8 @@ class AuthResult {
     this.message,
     this.error,
     this.requires2FA = false,
-    this.tempToken,
+    this.requiresOtp = false,
+    this.pendingEmail,
   });
 
   factory AuthResult.success({User? user, String? token, String? message}) {
@@ -174,7 +222,16 @@ class AuthResult {
   }
 
   factory AuthResult.requires2FA({required String tempToken}) {
-    return AuthResult._(success: true, requires2FA: true, tempToken: tempToken);
+    return AuthResult._(success: true, requires2FA: true, token: tempToken);
+  }
+
+  factory AuthResult.requiresOtp({required String email, String? message}) {
+    return AuthResult._(
+      success: true,
+      requiresOtp: true,
+      pendingEmail: email,
+      message: message,
+    );
   }
 }
 

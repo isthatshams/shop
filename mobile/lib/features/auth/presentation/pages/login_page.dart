@@ -248,6 +248,11 @@ class _LoginPageState extends State<LoginPage>
                         ),
                       ],
                     ),
+
+                    TextButton(
+                      onPressed: () => context.go('/admin/login'),
+                      child: const Text('Admin Login'),
+                    ),
                   ],
                 ),
               ),

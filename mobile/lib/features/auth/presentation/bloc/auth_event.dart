@@ -34,6 +34,25 @@ class AuthRegisterRequested extends AuthEvent {
   List<Object?> get props => [name, email, password];
 }
 
+class AuthOtpVerifyRequested extends AuthEvent {
+  final String email;
+  final String otp;
+
+  const AuthOtpVerifyRequested({required this.email, required this.otp});
+
+  @override
+  List<Object?> get props => [email, otp];
+}
+
+class AuthOtpResendRequested extends AuthEvent {
+  final String email;
+
+  const AuthOtpResendRequested({required this.email});
+
+  @override
+  List<Object?> get props => [email];
+}
+
 class Auth2FAVerifyRequested extends AuthEvent {
   final String code;
 
@@ -46,3 +65,6 @@ class Auth2FAVerifyRequested extends AuthEvent {
 class Auth2FAEnableRequested extends AuthEvent {}
 
 class AuthLogoutRequested extends AuthEvent {}
+
+// Used for canceling OTP flow without calling logout API
+class AuthResetRequested extends AuthEvent {}

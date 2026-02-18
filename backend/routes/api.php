@@ -5,6 +5,10 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerAuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\AdminProductController;
+use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\CustomerNotificationController;
+use App\Http\Controllers\Api\CustomerSettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,6 +19,11 @@ use App\Http\Controllers\Api\CategoryController;
 // Admin auth routes (for User model)
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+});
+
+// Admin auth alias routes
+Route::prefix('admin')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
 });
 
@@ -29,6 +38,23 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/2fa/enable', [AuthController::class, 'enable2FA']);
         Route::post('/2fa/verify', [AuthController::class, 'verify2FA']);
         Route::post('/2fa/disable', [AuthController::class, 'disable2FA']);
+    });
+
+    Route::prefix('admin')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/refresh', [AuthController::class, 'refresh']);
+        Route::get('/me', [AuthController::class, 'me']);
+
+        Route::get('/notifications', [AdminNotificationController::class, 'index']);
+        Route::post('/notifications', [AdminNotificationController::class, 'send']);
+        Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markRead']);
+        Route::post('/device-tokens', [AdminNotificationController::class, 'registerDevice']);
+
+        Route::get('/products', [AdminProductController::class, 'index']);
+        Route::post('/products', [AdminProductController::class, 'store']);
+        Route::get('/products/{id}', [AdminProductController::class, 'show']);
+        Route::put('/products/{id}', [AdminProductController::class, 'update']);
+        Route::delete('/products/{id}', [AdminProductController::class, 'destroy']);
     });
 });
 
@@ -45,6 +71,13 @@ Route::middleware('auth:customer')->prefix('customer')->group(function () {
     Route::get('/me', [CustomerAuthController::class, 'me']);
     Route::post('/logout', [CustomerAuthController::class, 'logout']);
     Route::post('/refresh', [CustomerAuthController::class, 'refresh']);
+
+    Route::get('/settings', [CustomerSettingsController::class, 'show']);
+    Route::put('/settings', [CustomerSettingsController::class, 'update']);
+
+    Route::get('/notifications', [CustomerNotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [CustomerNotificationController::class, 'markRead']);
+    Route::post('/device-tokens', [CustomerNotificationController::class, 'registerDevice']);
 });
 
 // Public product and category routes

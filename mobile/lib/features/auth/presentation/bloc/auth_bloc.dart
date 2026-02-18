@@ -12,9 +12,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthCheckRequested>(_onCheckRequested);
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
+    on<AuthOtpVerifyRequested>(_onOtpVerifyRequested);
+    on<AuthOtpResendRequested>(_onOtpResendRequested);
     on<Auth2FAVerifyRequested>(_on2FAVerifyRequested);
     on<Auth2FAEnableRequested>(_on2FAEnableRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
+    on<AuthResetRequested>(_onResetRequested);
   }
 
   Future<void> _onCheckRequested(
@@ -39,7 +42,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final result = await _authRepository.login(event.email, event.password);
 
     if (result.success) {
-      if (result.requires2FA) {
+      if (result.requiresOtp) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.requiresOtpVerification,
+            pendingEmail: result.pendingEmail,
+            message: result.message,
+          ),
+        );
+      } else if (result.requires2FA) {
         emit(state.copyWith(status: AuthStatus.requires2FA));
       } else {
         emit(
@@ -66,10 +77,67 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     if (result.success) {
-      emit(state.copyWith(status: AuthStatus.authenticated, user: result.user));
+      if (result.requiresOtp) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.requiresOtpVerification,
+            pendingEmail: result.pendingEmail ?? event.email,
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(status: AuthStatus.authenticated, user: result.user),
+        );
+      }
     } else {
       emit(
         state.copyWith(status: AuthStatus.unauthenticated, error: result.error),
+      );
+    }
+  }
+
+  Future<void> _onOtpVerifyRequested(
+    AuthOtpVerifyRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(state.copyWith(status: AuthStatus.loading, error: null));
+
+    final result = await _authRepository.verifyOtp(event.email, event.otp);
+
+    if (result.success) {
+      emit(state.copyWith(status: AuthStatus.authenticated, user: result.user));
+    } else {
+      emit(
+        state.copyWith(
+          status: AuthStatus.requiresOtpVerification,
+          error: result.error,
+          pendingEmail: event.email,
+        ),
+      );
+    }
+  }
+
+  Future<void> _onOtpResendRequested(
+    AuthOtpResendRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final result = await _authRepository.resendOtp(event.email);
+
+    if (result.success) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.requiresOtpVerification,
+          pendingEmail: event.email,
+          message: 'OTP sent successfully',
+        ),
+      );
+    } else {
+      emit(
+        state.copyWith(
+          status: AuthStatus.requiresOtpVerification,
+          pendingEmail: event.email,
+          error: result.error,
+        ),
       );
     }
   }
@@ -88,7 +156,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           state.copyWith(status: AuthStatus.authenticated, user: result.user),
         );
       } else {
-        // 2FA successfully enabled
         final user = await _authRepository.getCurrentUser();
         emit(state.copyWith(status: AuthStatus.authenticated, user: user));
       }
@@ -125,6 +192,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     await _authRepository.logout();
+    emit(const AuthState(status: AuthStatus.unauthenticated));
+  }
+
+  void _onResetRequested(AuthResetRequested event, Emitter<AuthState> emit) {
+    // Simply reset to unauthenticated without API call
     emit(const AuthState(status: AuthStatus.unauthenticated));
   }
 }

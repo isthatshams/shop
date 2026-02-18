@@ -115,7 +115,7 @@ class _TwoFactorPageState extends State<TwoFactorPage>
                       child: IconButton(
                         onPressed: () => context.go('/login'),
                         icon: const Icon(Icons.arrow_back_ios),
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.darkTextSecondary,
                       ),
                     ),
 
@@ -130,7 +130,7 @@ class _TwoFactorPageState extends State<TwoFactorPage>
                         height: 80,
                         width: 80,
                         decoration: BoxDecoration(
-                          color: AppTheme.surfaceColor,
+                          color: AppTheme.darkSurface,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
                             color: AppTheme.primaryColor.withOpacity(0.3),
@@ -181,13 +181,13 @@ class _TwoFactorPageState extends State<TwoFactorPage>
                               style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary,
+                                color: AppTheme.darkTextPrimary,
                               ),
                               decoration: InputDecoration(
                                 counterText: '',
                                 contentPadding: EdgeInsets.zero,
                                 filled: true,
-                                fillColor: AppTheme.surfaceColor,
+                                fillColor: AppTheme.darkSurface,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: BorderSide.none,
@@ -269,14 +269,14 @@ class _TwoFactorPageState extends State<TwoFactorPage>
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.surfaceColor,
+                        color: AppTheme.darkSurface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
                           const Icon(
                             Icons.info_outline,
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.darkTextSecondary,
                             size: 20,
                           ),
                           const SizedBox(width: 12),

@@ -6,6 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Notification;
+use App\Models\User;
+use App\Models\DeviceToken;
+use App\Notifications\OutOfStockNotification;
+use App\Services\PushNotificationService;
 
 class Product extends Model
 {
@@ -45,6 +50,36 @@ class Product extends Model
         static::creating(function ($product) {
             if (empty($product->slug)) {
                 $product->slug = Str::slug($product->name);
+            }
+        });
+
+        static::updated(function ($product) {
+            if (
+                $product->wasChanged('stock') &&
+                $product->stock <= 0 &&
+                $product->getOriginal('stock') > 0
+            ) {
+                $admins = User::query()->get();
+                if ($admins->isNotEmpty()) {
+                    Notification::send($admins, new OutOfStockNotification($product));
+
+                    $tokens = DeviceToken::query()
+                        ->where('notifiable_type', User::class)
+                        ->whereIn('notifiable_id', $admins->pluck('id'))
+                        ->pluck('token')
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    if (!empty($tokens)) {
+                        app(PushNotificationService::class)->send(
+                            $tokens,
+                            'Product out of stock',
+                            "{$product->name} is out of stock.",
+                            ['type' => 'stock_alert', 'product_id' => $product->id]
+                        );
+                    }
+                }
             }
         });
     }
