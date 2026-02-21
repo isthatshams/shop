@@ -7,6 +7,7 @@ use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AdminProductController extends Controller
@@ -135,6 +136,21 @@ class AdminProductController extends Controller
         ]);
     }
 
+    /**
+     * Upload a product image and return its public URL.
+     */
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ]);
+
+        $path = $request->file('image')->store('products', 'public');
+        $url  = url(Storage::url($path));
+
+        return response()->json(['success' => true, 'url' => $url]);
+    }
+
     protected function validator(array $data, ?int $productId = null)
     {
         $uniqueSlugRule = 'unique:products,slug';
@@ -143,18 +159,18 @@ class AdminProductController extends Controller
         }
 
         return Validator::make($data, [
-            'name' => 'required|string|max:255',
-            'slug' => ['nullable', 'string', 'max:255', $uniqueSlugRule],
-            'description' => 'nullable|string',
-            'price' => 'required|numeric|min:0',
-            'original_price' => 'nullable|numeric|min:0|gte:price',
-            'stock' => 'required|integer|min:0',
-            'is_active' => 'nullable|boolean',
-            'is_featured' => 'nullable|boolean',
-            'images' => 'nullable|array',
-            'images.*' => 'string|max:500',
-            'category_id' => 'nullable|integer|exists:categories,id',
-            'rating' => 'nullable|numeric|min:0|max:5',
+            'name'          => 'required|string|max:255',
+            'slug'          => ['nullable', 'string', 'max:255', $uniqueSlugRule],
+            'description'   => 'nullable|string',
+            'price'         => 'required|numeric|min:0',
+            'original_price' => 'nullable|numeric|min:0',
+            'stock'         => 'required|integer|min:0',
+            'is_active'     => 'nullable|boolean',
+            'is_featured'   => 'nullable|boolean',
+            'images'        => 'nullable|array',
+            'images.*'      => 'string|max:1000',
+            'category_id'   => 'nullable|integer|exists:categories,id',
+            'rating'        => 'nullable|numeric|min:0|max:5',
             'reviews_count' => 'nullable|integer|min:0',
         ]);
     }

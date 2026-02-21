@@ -7,8 +7,11 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\AdminCategoryController;
 use App\Http\Controllers\Api\CustomerNotificationController;
 use App\Http\Controllers\Api\CustomerSettingsController;
+use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\WishlistController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,7 +36,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/refresh', [AuthController::class, 'refresh']);
         Route::get('/me', [AuthController::class, 'me']);
-        
+
         // 2FA routes for admin
         Route::post('/2fa/enable', [AuthController::class, 'enable2FA']);
         Route::post('/2fa/verify', [AuthController::class, 'verify2FA']);
@@ -50,11 +53,19 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markRead']);
         Route::post('/device-tokens', [AdminNotificationController::class, 'registerDevice']);
 
+        // Products (must register /upload-image before /{id} to avoid routing conflict)
         Route::get('/products', [AdminProductController::class, 'index']);
+        Route::post('/products/upload-image', [AdminProductController::class, 'uploadImage']);
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::get('/products/{id}', [AdminProductController::class, 'show']);
         Route::put('/products/{id}', [AdminProductController::class, 'update']);
         Route::delete('/products/{id}', [AdminProductController::class, 'destroy']);
+
+        // Categories admin CRUD
+        Route::get('/categories', [AdminCategoryController::class, 'index']);
+        Route::post('/categories', [AdminCategoryController::class, 'store']);
+        Route::put('/categories/{id}', [AdminCategoryController::class, 'update']);
+        Route::delete('/categories/{id}', [AdminCategoryController::class, 'destroy']);
     });
 });
 
@@ -66,7 +77,7 @@ Route::prefix('customer')->group(function () {
     Route::post('/login', [CustomerAuthController::class, 'login']);
 });
 
-// Customer protected routes 
+// Customer protected routes
 Route::middleware('auth:customer')->prefix('customer')->group(function () {
     Route::get('/me', [CustomerAuthController::class, 'me']);
     Route::post('/logout', [CustomerAuthController::class, 'logout']);
@@ -78,6 +89,18 @@ Route::middleware('auth:customer')->prefix('customer')->group(function () {
     Route::get('/notifications', [CustomerNotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [CustomerNotificationController::class, 'markRead']);
     Route::post('/device-tokens', [CustomerNotificationController::class, 'registerDevice']);
+
+    // Cart
+    Route::get('/cart', [CartController::class, 'index']);
+    Route::post('/cart', [CartController::class, 'store']);
+    Route::put('/cart/{productId}', [CartController::class, 'update']);
+    Route::delete('/cart/clear', [CartController::class, 'clear']);
+    Route::delete('/cart/{productId}', [CartController::class, 'destroy']);
+
+    // Wishlist
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+    Route::post('/wishlist/{productId}', [WishlistController::class, 'toggle']);
+    Route::get('/wishlist/{productId}/status', [WishlistController::class, 'status']);
 });
 
 // Public product and category routes
